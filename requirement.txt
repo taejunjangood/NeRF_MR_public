@@ -1,0 +1,15 @@
+Cython
+h5py
+imageio
+ipywidgets
+matplotlib
+numba
+numpy
+pyCT
+pyjson
+PyYAML
+scikit-image
+scipy
+sigpy
+torch
+tqdm
