@@ -1,0 +1,24 @@
+# learning parameters
+step : 10
+
+# data parameters
+batch_size : 1024
+
+# data parameters
+ray_sampling_step : .5
+ray_sampling_mode : 'stratified'
+
+# model parameters
+model_depth : 8
+model_width : 256
+encoding_dim : 10
+activation : 'relu'
+
+# optimizer parameter
+learning_rate : 0.001
+learning_rate_decay : 0.9985
+
+# freq parameters
+freq_print_loss : 1
+freq_save_weight : 1
+freq_save_image : 1
