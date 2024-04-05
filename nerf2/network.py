@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from .parameter import _Config as config
 
-
-def getPositionalEncoder(config):
+def getPositionalEncoder(config:config):
     dim = config.model.encoding_dim
     return _Encoder(dim).func
 
@@ -19,22 +19,22 @@ class _Encoder():
             embedding.append(torch.cos(x * w))
         return torch.cat(embedding, axis=-1)
 
-def getModel(config):
+def getModel(config:config):
     in_ch = config.model.encoding_dim * 2 * 3 + 3
     out_ch = 1
     depth = config.model.depth
     width = config.model.width
     activation = config.model.activation.lower()
     if activation == 'relu':
-        return _Model(in_ch, out_ch, depth, width, connections=[depth//2])
+        return _FFN(in_ch, out_ch, depth, width, connections=[depth//2])
     elif activation == 'sin':
-        return SIREN(in_ch, out_ch, depth, width)
+        return _SIREN(in_ch, out_ch, depth, width)
 
 
 
-class _Model(nn.Module):
+class _FFN(nn.Module):
     def __init__(self, in_ch, out_ch, depth, width, connections):
-        super(_Model, self).__init__()
+        super(_FFN, self).__init__()
         self.in_ch = in_ch
         self.depth = depth
         self.width = width
@@ -55,7 +55,7 @@ class _Model(nn.Module):
 
 
 
-class SirenLayer(nn.Module):
+class _SirenLayer(nn.Module):
     def __init__(self, in_f, out_f, w0=30, is_first=False, is_last=False):
         super().__init__()
         self.in_f = in_f
@@ -75,14 +75,14 @@ class SirenLayer(nn.Module):
         return x if self.is_last else torch.sin(self.w0 * x)
 
 
-class SIREN(nn.Module):
+class _SIREN(nn.Module):
 
     def __init__(self, in_ch, out_ch, depth, width):
-        super(SIREN, self).__init__()
-        layers = [SirenLayer(in_ch, width, is_first=True)]
+        super(_SIREN, self).__init__()
+        layers = [_SirenLayer(in_ch, width, is_first=True)]
         for _ in range(1, depth - 1):
-            layers.append(SirenLayer(width, width))
-        layers.append(SirenLayer(width, out_ch, is_last=True))
+            layers.append(_SirenLayer(width, width))
+        layers.append(_SirenLayer(width, out_ch, is_last=True))
         self.model = nn.Sequential(*layers)
 
     def forward(self, x):

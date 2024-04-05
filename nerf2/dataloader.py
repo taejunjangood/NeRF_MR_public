@@ -1,5 +1,6 @@
 import numpy as np
-import pyCT.forward as forward
+from pyCT.parameter import _Parameters as header
+from .parameter import _Config as config
 
 def getDataloader(mode, header, config, *args):
     if mode == 'train':
@@ -10,17 +11,17 @@ def getDataloader(mode, header, config, *args):
     
 class _DataloaderInference():
     
-    def __init__(self, header, config):
+    def __init__(self, config:config, header:header):
         self.__header = header
         self.__config = config
         self.__loadInput()
         self.__setBatch()
         
     def __loadInput(self):
-        sx, sy, sz = self.__header.object.length.x, self.__header.object.length.y, self.__header.object.length.z
-        nx, ny, nz = self.__header.object.size.x, self.__header.object.size.y, self.__header.object.size.z
-        dx, dy, dz = self.__header.object.spacing.x, self.__header.object.spacing.y, self.__header.object.spacing.z
-        near,far = self.__header.distance.near, self.__header.distance.far
+        sx, sy, sz = self.__header.object.length.get()
+        nx, ny, nz = self.__header.object.size.get()
+        dx, dy, dz = self.__header.object.spacing.get()
+        near, far = self.__header.source.distance.near, self.__header.source.distance.far
 
         if nx == 1:
             x = [0]
@@ -56,11 +57,10 @@ class _DataloaderInference():
     
 class _DataloaderTraining():
     
-    def __init__(self, header, config, *args):
+    def __init__(self, config:config, header:header, *args):
         self.__header = header
         self.__config = config
-        self.__data = args[0]
-        self.__angles = args[1]
+        self.__data_info = args[0]
 
         self.origins = None
         self.directions = None
@@ -73,7 +73,7 @@ class _DataloaderTraining():
     def __getCameraTransformation(self, angle):
         frame = np.array([[np.cos(angle), -np.sin(angle), 0], [np.sin(angle), np.cos(angle), 0], [0, 0, 1]]) @ np.array([[0,0,1],[1,0,0],[0,1,0]])
         frame = frame.T
-        origin = self.__header.distance.source2object * frame[2]
+        origin = self.__header.source.distance.source2object * frame[2]
         translation = np.eye(4)
         translation[:-1, -1] = -origin
         rotation = np.eye(4)
@@ -95,7 +95,7 @@ class _DataloaderTraining():
             ray_origin = np.stack([X,Y,Z], axis=-1) @ cameraTransformation[:-1,:-1].T + cameraTransformation[:-1,-1]
             ray_direction = np.broadcast_to(-cameraTransformation[:-1,2], ray_origin.shape)
         else:
-            Z = -self.__header.distance.source2detector * np.ones_like(X)
+            Z = -self.__header.source.distance.source2detector * np.ones_like(X)
             ray_direction = np.stack([X,Y,Z], axis=-1) @ cameraTransformation[:-1,:-1].T
             ray_direction /= np.linalg.norm(ray_direction, axis=-1, keepdims=True)
             ray_origin = np.broadcast_to(cameraTransformation[:-1,-1], ray_direction.shape)
@@ -107,9 +107,9 @@ class _DataloaderTraining():
         origins = []
         directions = []
         
-        self.data = self.__data.flatten()
-        self.num_data = self.data.size
-        for angle in self.__angles:
+        self.data = self.__data_info.data.flatten()
+        self.num_data = self.__data_info.data.size
+        for angle in self.__data_info.angles:
             ray_origin, ray_direction = self.__castRays(angle)
             origins.append(ray_origin.reshape(-1,3))
             directions.append(ray_direction.reshape(-1,3))
@@ -121,8 +121,8 @@ class _DataloaderTraining():
         o = ray_origin[...,None,:]
         d = ray_direction[...,None,:]
         
-        near = self.__header.distance.near
-        far = self.__header.distance.far
+        near = self.__header.source.distance.near
+        far = self.__header.source.distance.far
         step = self.__config.ray_sampling.step
         sampling_num = int((far-near)//step)
         t = np.linspace(0, 1, sampling_num+1)[:-1]
@@ -150,6 +150,8 @@ class _DataloaderTraining():
 
 
     def generateBatch(self, shuffle=False):
+        near = self.__header.source.distance.near
+        far = self.__header.source.distance.far
         batch_size = self.__config.batch.size
         if shuffle:
             all_idx = np.random.permutation(self.num_data)
@@ -162,4 +164,5 @@ class _DataloaderTraining():
             d = self.directions[shuffle_idx]
             y = self.data[shuffle_idx]
             x, dt = self.__samplePointsOnRay(o, d)
+            x /= (far-near)
             yield x, dt, y
