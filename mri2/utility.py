@@ -1,8 +1,12 @@
 import numpy as np
-import sigpy as sp
-import sigpy.mri as mr
 
 def getMinimalSpokes(image_shape):
+    if len(image_shape) == 3:
+        nz, ny, nx = image_shape
+        if nz == 1:
+            image_shape = [ny, nx]
+        else:
+            raise ValueError('Image is not 2D.')
     return int(np.pi/2 * max(image_shape))
 
 def getAngles(num, mode, start_angle=None, end_angle=None):

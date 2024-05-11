@@ -1,17 +1,44 @@
 import numpy as np
 import sigpy as sp
 import pyCT.forward as forward
-from nerf.parameter import getHeader
-
+from nerf2.parameter import getHeader
+from nerf2.parameter import *
+import pyCT
 
 def makeMeasuredData(image, angles, is_incribed):
-    shape = image.shape
-    header = getHeader(shape, is_incribed)
-    return forward.project(image, header, angles)
+    nz, ny, nx = image.shape
+    if nz != 1:
+        raise ValueError("Image is not 2D.")
+
+    header = getHeader()
+    header.object.size.set([nx, ny, 1])
+    header.object.length.set([float(nx), float(ny), 1.])
+    header.object.spacing.set([1., 1., 1.])
+    if is_incribed:
+        nu = max(nx, ny)
+    else:
+        nu = int((nx**2 + ny**2)**.5)
+        nu = nu if nu%2 == 0 else nu+1
+    header.detector.size.set([nu, 1])
+    header.detector.length.set([float(nu), 1.])
+    header.detector.spacing.set([1., 1.])
+    header.source.distance.source2origin = nu/2
+    header.source.distance.source2detector = float(nu)
+    header.set(angles)
+
+    return pyCT.project(image, header)
 
 
-def getRadialSamplingImage(image, angles, num_readout=None, is_incribed=False, is_tight=True, **kwargs):
-
+def getRadialSampledImage(image, angles, num_readout=None, is_incribed=False, is_tight=True, **kwargs):
+    if len(image.shape) == 3:
+        nz, ny, nx = image.shape
+        if nz != 1:
+            raise ValueError('Image is not 2D.')
+    elif len(image.shape) == 2:
+        ny, nx = image.shape
+    else:
+        raise ValueError('Image is not 2D.')
+    
     if 'return_raw' in kwargs.keys():
         return_raw = kwargs['return_raw']
     else:
@@ -21,9 +48,6 @@ def getRadialSamplingImage(image, angles, num_readout=None, is_incribed=False, i
     else:
         return_coordinates = False
 
-    num_trajectory = len(angles)
-
-    ny, nx = image.shape
     if is_incribed:
         diameter = max(nx, ny)
         diameter = diameter+1 if (diameter % 2) == 1 else diameter
@@ -43,6 +67,7 @@ def getRadialSamplingImage(image, angles, num_readout=None, is_incribed=False, i
         num_readout -= 1
     
     r, theta = np.meshgrid(r, angles)
+    num_trajectory = len(angles)
 
     coordinates = np.zeros((num_trajectory, num_readout, 2))
     coordinates[:, :, -1] = r * np.cos(theta)
