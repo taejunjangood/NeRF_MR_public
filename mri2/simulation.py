@@ -22,12 +22,10 @@ def makeMeasuredData(image, angles, is_incribed):
     header.detector.size.set([nu, 1])
     header.detector.length.set([float(nu), 1.])
     header.detector.spacing.set([1., 1.])
-    header.source.distance.source2object = nu/2
+    header.source.distance.source2origin = nu/2
     header.source.distance.source2detector = float(nu)
-    header.source.distance.near = 0.
-    header.source.distance.far = float(nu)
+    header.set(angles)
 
-    header.source.motion.set(angles)
     return pyCT.project(image, header)
 
 
